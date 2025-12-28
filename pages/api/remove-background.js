@@ -1,3 +1,22 @@
+import sharp from 'sharp';
+import { pipeline, env } from '@xenova/transformers';
+
+env.allowLocalModels = false;
+env.useBrowserCache = false;
+
+class BackgroundRemovalSingleton {
+  static task = 'image-segmentation';
+  static model = 'briaai/RMBG-1.4';
+  static instance = null;
+
+  static async getInstance(progress_callback = null) {
+    if (this.instance === null) {
+      this.instance = await pipeline(this.task, this.model, { progress_callback });
+    }
+    return this.instance;
+  }
+}
+
 export const config = {
   api: {
     bodyParser: false,
@@ -13,50 +32,32 @@ async function streamToBuffer(stream) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
   try {
-    // ---  PASTE YOUR API KEY HERE  ---
-    const API_KEY = process.env.REMOVE_BG_API_KEY; 
-    // -------------------------------------
-
-    if (API_KEY === "PASTE_YOUR_REMOVE_BG_KEY_HERE") {
-      throw new Error("Missing API Key. Please open pages/api/remove-background.js and paste your key.");
-    }
-
-    
     const inputBuffer = await streamToBuffer(req);
+    
+    const segmenter = await BackgroundRemovalSingleton.getInstance();
+    
+    const blob = new Blob([inputBuffer], { type: 'image/png' });
+    const output = await segmenter(blob);
+    const mask = output[0].mask;
 
+    const maskBuffer = await sharp(mask.data, {
+      raw: { width: mask.width, height: mask.height, channels: mask.channels },
+    }).resize(mask.width, mask.height).toFormat('png').toBuffer();
 
-    const formData = new FormData();
-    formData.append("image_file", new Blob([inputBuffer]), "image.png");
-    formData.append("size", "auto");
+    const finalBuffer = await sharp(inputBuffer)
+      .resize(mask.width, mask.height)
+      .composite([{ input: maskBuffer, blend: 'dest-in' }])
+      .toFormat('png')
+      .toBuffer();
 
-
-    const response = await fetch("https://api.remove.bg/v1.0/removebg", {
-      method: "POST",
-      headers: {
-        "X-Api-Key": API_KEY,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Remove.bg Error:", errorText);
-      throw new Error(`Remove.bg API Error: ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const outputBuffer = Buffer.from(arrayBuffer);
-
-    res.setHeader("Content-Type", "image/png");
-    res.send(outputBuffer);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(finalBuffer);
 
   } catch (error) {
-    console.error("Server processing error:", error);
-    res.status(500).json({ message: error.message || 'Failed to process image' });
+    console.error(error);
+    res.status(500).json({ message: 'Error processing image', error: error.message });
   }
 }
