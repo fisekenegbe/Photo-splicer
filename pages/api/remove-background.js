@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { pipeline, env } from '@huggingface/transformers';
+import { pipeline, env, RawImage } from '@huggingface/transformers';
 
 env.allowLocalModels = true;
 env.useBrowserCache = false;
@@ -37,15 +37,11 @@ export default async function handler(req, res) {
   try {
     const inputBuffer = await streamToBuffer(req);
     
-  const isJpeg = inputBuffer[0] === 0xFF;
-const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+const image = await RawImage.read(inputBuffer);
 
-const base64Image = `data:${mimeType};base64,${inputBuffer.toString('base64')}`;
-    
-    const segmenter = await BackgroundRemovalSingleton.getInstance();
-    
-    const output = await segmenter(base64Image);
-    const mask = output[0].mask;
+const segmenter = await BackgroundRemovalSingleton.getInstance();
+
+const output = await segmenter(image);    const mask = output[0].mask;
 
     const maskBuffer = await sharp(mask.data, {
       raw: { width: mask.width, height: mask.height, channels: mask.channels },
