@@ -47,7 +47,13 @@ const output = await segmenter(tempFilePath);
 fs.unlinkSync(tempFilePath);
 const mask = output[0].mask;
 
-const buffer = await mask.toBuffer('image/png');
+const maskPath = path.join(os.tmpdir(), `mask_${Date.now()}.png`);
+
+await mask.save(maskPath);
+
+const buffer = fs.readFileSync(maskPath);
+
+fs.unlinkSync(maskPath);
 const base64Mask = `data:image/png;base64,${buffer.toString('base64')}`;
 
 res.status(200).json({ mask: base64Mask });
