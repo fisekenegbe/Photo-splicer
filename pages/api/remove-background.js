@@ -1,4 +1,5 @@
 import { pipeline, env } from '@huggingface/transformers';
+import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -47,15 +48,26 @@ export default async function handler(req, res) {
 
     const segmenter = await BackgroundRemovalSingleton.getInstance();
     const output = await segmenter(tempFilePath);
-
+    
     const mask = output[0].mask;
     maskPath = path.join(os.tmpdir(), `mask_${Date.now()}.png`);
     await mask.save(maskPath);
 
-    const buffer = fs.readFileSync(maskPath);
+    const originalImage = sharp(tempFilePath);
+    const { width, height } = await originalImage.metadata();
+
+    const maskBuffer = await sharp(maskPath)
+      .resize(width, height)
+      .grayscale()
+      .toBuffer();
+
+    const finalBuffer = await originalImage
+      .joinChannel(maskBuffer)
+      .toFormat('png')
+      .toBuffer();
 
     res.setHeader('Content-Type', 'image/png');
-    res.send(buffer);
+    res.send(finalBuffer);
 
   } catch (error) {
     console.error(error);
