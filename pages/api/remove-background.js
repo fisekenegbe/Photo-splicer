@@ -6,7 +6,7 @@ env.useBrowserCache = false;
 
 class BackgroundRemovalSingleton {
   static task = 'image-segmentation';
-  static model = 'Xenova/isnet-general-use';
+  static model = 'Xenova/rmbg-1.4';
   static instance = null;
 
   static async getInstance(progress_callback = null) {
