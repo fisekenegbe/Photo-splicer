@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline } from '@huggingface/transformers';
 
 env.allowLocalModels = true;
 env.useBrowserCache = false;
