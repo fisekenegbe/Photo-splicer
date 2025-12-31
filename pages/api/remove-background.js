@@ -1,12 +1,12 @@
 import sharp from 'sharp';
-import { pipeline } from '@huggingface/transformers';
+import { pipeline, env } from '@huggingface/transformers';
 
 env.allowLocalModels = true;
 env.useBrowserCache = false;
 
 class BackgroundRemovalSingleton {
   static task = 'image-segmentation';
-  static model = 'Xenova/rmbg-1.4';
+  static model = 'Xenova/modnet';
   static instance = null;
 
   static async getInstance(progress_callback = null) {
