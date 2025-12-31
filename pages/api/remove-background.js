@@ -37,7 +37,10 @@ export default async function handler(req, res) {
   try {
     const inputBuffer = await streamToBuffer(req);
     
-    const base64Image = `data:image/png;base64,${inputBuffer.toString('base64')}`;
+  const isJpeg = inputBuffer[0] === 0xFF;
+const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+
+const base64Image = `data:${mimeType};base64,${inputBuffer.toString('base64')}`;
     
     const segmenter = await BackgroundRemovalSingleton.getInstance();
     
