@@ -10,5 +10,5 @@ app_port: 3000
 
 # Photo Splicer
 
-An AI-powered background removal tool running 100% locally.
+An AI-powered background removal tool
 Built with Next.js and Transformers.js.

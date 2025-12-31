@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { pipeline, env } from '@xenova/transformers';
 
-env.allowLocalModels = false;
+env.allowLocalModels = true;
 env.useBrowserCache = false;
 
 class BackgroundRemovalSingleton {
@@ -37,15 +37,19 @@ export default async function handler(req, res) {
   try {
     const inputBuffer = await streamToBuffer(req);
     
+    const base64Image = `data:image/png;base64,${inputBuffer.toString('base64')}`;
+    
     const segmenter = await BackgroundRemovalSingleton.getInstance();
     
-    const blob = new Blob([inputBuffer], { type: 'image/png' });
-    const output = await segmenter(blob);
+    const output = await segmenter(base64Image);
     const mask = output[0].mask;
 
     const maskBuffer = await sharp(mask.data, {
       raw: { width: mask.width, height: mask.height, channels: mask.channels },
-    }).resize(mask.width, mask.height).toFormat('png').toBuffer();
+    })
+    .resize(mask.width, mask.height)
+    .toFormat('png')
+    .toBuffer();
 
     const finalBuffer = await sharp(inputBuffer)
       .resize(mask.width, mask.height)
