@@ -45,6 +45,12 @@ fs.writeFileSync(tempFilePath, inputBuffer);
 const segmenter = await BackgroundRemovalSingleton.getInstance();
 const output = await segmenter(tempFilePath);
 fs.unlinkSync(tempFilePath);
+const mask = output[0].mask;
+
+const buffer = await mask.toBuffer('image/png');
+const base64Mask = `data:image/png;base64,${buffer.toString('base64')}`;
+
+res.status(200).json({ mask: base64Mask });
 
     const maskBuffer = await sharp(mask.data, {
       raw: { width: mask.width, height: mask.height, channels: mask.channels },
