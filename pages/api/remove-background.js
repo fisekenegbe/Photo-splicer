@@ -1,10 +1,9 @@
-import sharp from 'sharp';
 import { pipeline, env } from '@huggingface/transformers';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-env.allowLocalModels = true;
+env.allowLocalModels = false;
 env.useBrowserCache = false;
 
 class BackgroundRemovalSingleton {
@@ -37,45 +36,36 @@ async function streamToBuffer(stream) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
+  let tempFilePath = '';
+  let maskPath = '';
+
   try {
     const inputBuffer = await streamToBuffer(req);
     
-const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.png`);
-fs.writeFileSync(tempFilePath, inputBuffer);
-const segmenter = await BackgroundRemovalSingleton.getInstance();
-const output = await segmenter(tempFilePath);
-fs.unlinkSync(tempFilePath);
-const mask = output[0].mask;
+    tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.png`);
+    fs.writeFileSync(tempFilePath, inputBuffer);
 
-const maskPath = path.join(os.tmpdir(), `mask_${Date.now()}.png`);
+    const segmenter = await BackgroundRemovalSingleton.getInstance();
+    const output = await segmenter(tempFilePath);
 
-await mask.save(maskPath);
+    const mask = output[0].mask;
+    maskPath = path.join(os.tmpdir(), `mask_${Date.now()}.png`);
+    await mask.save(maskPath);
 
-const buffer = fs.readFileSync(maskPath);
-
-fs.unlinkSync(maskPath);
-const base64Mask = `data:image/png;base64,${buffer.toString('base64')}`;
-
-res.status(200).json({ mask: base64Mask });
-
-    const maskBuffer = await sharp(mask.data, {
-      raw: { width: mask.width, height: mask.height, channels: mask.channels },
-    })
-    .resize(mask.width, mask.height)
-    .toFormat('png')
-    .toBuffer();
-
-    const finalBuffer = await sharp(inputBuffer)
-      .resize(mask.width, mask.height)
-      .composite([{ input: maskBuffer, blend: 'dest-in' }])
-      .toFormat('png')
-      .toBuffer();
+    const buffer = fs.readFileSync(maskPath);
 
     res.setHeader('Content-Type', 'image/png');
-    res.send(finalBuffer);
+    res.send(buffer);
 
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error processing image', error: error.message });
+  } finally {
+    try {
+        if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+        if (maskPath && fs.existsSync(maskPath)) fs.unlinkSync(maskPath);
+    } catch (cleanupError) {
+        console.error('Error cleaning up temp files:', cleanupError);
+    }
   }
 }
