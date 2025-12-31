@@ -1,5 +1,8 @@
 import sharp from 'sharp';
-import { pipeline, env, RawImage } from '@huggingface/transformers';
+import { pipeline, env } from '@huggingface/transformers';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 env.allowLocalModels = true;
 env.useBrowserCache = false;
@@ -37,11 +40,11 @@ export default async function handler(req, res) {
   try {
     const inputBuffer = await streamToBuffer(req);
     
-const image = await RawImage.read(inputBuffer);
-
+const tempFilePath = path.join(os.tmpdir(), `upload_${Date.now()}.png`);
+fs.writeFileSync(tempFilePath, inputBuffer);
 const segmenter = await BackgroundRemovalSingleton.getInstance();
-
-const output = await segmenter(image);    const mask = output[0].mask;
+const output = await segmenter(tempFilePath);
+fs.unlinkSync(tempFilePath);
 
     const maskBuffer = await sharp(mask.data, {
       raw: { width: mask.width, height: mask.height, channels: mask.channels },
